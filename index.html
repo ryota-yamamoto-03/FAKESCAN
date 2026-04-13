@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAKEorREAL – AI・偽サイト検出ツール</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #04040a;
+  --surface: rgba(255,255,255,0.04);
+  --glass:   rgba(255,255,255,0.06);
+  --border:  rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.13);
+  --text:    #f1f0ff;
+  --muted:   #6b6b80;
+  --subtle:  #3a3a4a;
+  --accent:  #7c6fff;
+  --accent2: #a855f7;
+  --green:   #10d876;
+  --yellow:  #fbbf24;
+  --orange:  #fb923c;
+  --red:     #f43f5e;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 999; opacity: 0.4;
+}
+
+/* ===== Ambient blobs ===== */
+.blob-wrap { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+.blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.18; animation: drift 18s ease-in-out infinite; }
+.blob-1 { width: 600px; height: 600px; background: radial-gradient(circle, #7c6fff, transparent 70%); top: -200px; left: -150px; animation-duration: 22s; }
+.blob-2 { width: 500px; height: 500px; background: radial-gradient(circle, #f43f5e, transparent 70%); top: 30%; right: -180px; animation-duration: 17s; animation-delay: -8s; }
+.blob-3 { width: 400px; height: 400px; background: radial-gradient(circle, #10d876, transparent 70%); bottom: -100px; left: 30%; opacity: 0.1; animation-duration: 25s; animation-delay: -4s; }
+
+@keyframes drift {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%      { transform: translate(40px,-30px) scale(1.05); }
+  66%      { transform: translate(-25px,20px) scale(0.96); }
+}
+
+/* ===== Header ===== */
+.header {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 40px;
+  background: rgba(4,4,10,0.7);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+}
+.logo { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; display: flex; align-items: center; gap: 2px; }
+.logo-fake  { color: var(--red); }
+.logo-slash { color: var(--subtle); font-weight: 300; margin: 0 4px; }
+.logo-real  { color: var(--green); }
+.nav { display: flex; gap: 6px; }
+.nav a { color: var(--muted); text-decoration: none; font-size: 0.85rem; font-weight: 500; padding: 6px 14px; border-radius: 8px; transition: all 0.2s; }
+.nav a:hover { color: var(--text); background: var(--surface); }
+
+/* ===== Hero ===== */
+.hero {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; padding: 100px 24px 72px;
+  max-width: 800px; margin: 0 auto;
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(124,111,255,0.1); border: 1px solid rgba(124,111,255,0.25);
+  color: #c4b8ff; font-size: 0.74rem; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 5px 16px; border-radius: 999px; margin-bottom: 32px;
+}
+.hero-badge::before {
+  content: ''; width: 6px; height: 6px;
+  background: var(--accent); border-radius: 50%;
+  box-shadow: 0 0 8px var(--accent);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(0.8); }
+}
+.hero-title { font-size: clamp(2.8rem, 7vw, 5rem); font-weight: 900; line-height: 1.08; letter-spacing: -2.5px; margin-bottom: 24px; }
+.gradient-text {
+  background: linear-gradient(135deg, #a78bfa 0%, #f43f5e 50%, #fb923c 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  animation: gradient-shift 6s linear infinite;
+}
+@keyframes gradient-shift { 0% { background-position: 0% center; } 100% { background-position: 200% center; } }
+.hero-sub { color: var(--muted); font-size: 1.05rem; line-height: 1.75; max-width: 500px; margin-bottom: 48px; font-weight: 400; }
+
+/* ===== Input Card ===== */
+.input-card {
+  width: 100%; max-width: 640px;
+  background: var(--glass); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 8px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04) inset, 0 32px 64px rgba(0,0,0,0.4), 0 0 60px rgba(124,111,255,0.06);
+  transition: box-shadow 0.3s;
+}
+.input-card:focus-within {
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04) inset, 0 32px 64px rgba(0,0,0,0.5), 0 0 0 1px rgba(124,111,255,0.4), 0 0 80px rgba(124,111,255,0.12);
+}
+.input-row {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px; padding: 6px 6px 6px 18px;
+}
+.input-icon { font-size: 1rem; flex-shrink: 0; opacity: 0.5; }
+#urlInput {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text); font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem; padding: 10px 0; min-width: 0;
+}
+#urlInput::placeholder { color: var(--subtle); }
+#checkBtn {
+  position: relative; display: flex; align-items: center; gap: 8px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; border: none; border-radius: 10px;
+  padding: 11px 22px; font-weight: 700; font-size: 0.88rem;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; overflow: hidden;
+}
+#checkBtn::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent); opacity: 0; transition: opacity 0.2s; }
+#checkBtn:hover::before { opacity: 1; }
+#checkBtn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(124,111,255,0.35); }
+#checkBtn:active { transform: translateY(0) scale(0.97); }
+#checkBtn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+.input-hint { font-size: 0.74rem; color: var(--subtle); padding: 8px 12px 2px; letter-spacing: 0.01em; }
+
+/* ===== Samples ===== */
+.samples { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; justify-content: center; }
+.samples-label { font-size: 0.78rem; color: var(--subtle); }
+.sample-btn {
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  color: var(--muted); border-radius: 8px; padding: 5px 14px; font-size: 0.78rem;
+  cursor: pointer; transition: all 0.2s; font-family: 'JetBrains Mono', monospace;
+}
+.sample-btn:hover { border-color: rgba(124,111,255,0.5); color: var(--text); background: rgba(124,111,255,0.08); transform: translateY(-1px); }
+
+/* ===== Scan line ===== */
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(124,111,255,0.4), transparent);
+  animation: scan 4s ease-in-out infinite; pointer-events: none;
+}
+@keyframes scan { 0% { top: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+
+/* ===== Loading ===== */
+.loading-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(4,4,10,0.88); backdrop-filter: blur(16px);
+}
+.loading-overlay.hidden { display: none; }
+.loading-box {
+  display: flex; flex-direction: column; align-items: center; gap: 24px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border2);
+  border-radius: 24px; padding: 44px 52px; min-width: 320px;
+  backdrop-filter: blur(24px);
+  box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06) inset;
+}
+.spinner-ring { width: 48px; height: 48px; position: relative; }
+.spinner-ring::before, .spinner-ring::after {
+  content: ''; position: absolute; inset: 0;
+  border-radius: 50%; border: 2px solid transparent;
+}
+.spinner-ring::before { border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
+.spinner-ring::after  { border-bottom-color: var(--accent2); animation: spin 1.4s linear infinite reverse; inset: 6px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-title { font-size: 1rem; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
+.loading-steps { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.step { display: flex; align-items: center; gap: 10px; font-size: 0.78rem; color: var(--subtle); transition: color 0.3s; font-family: 'JetBrains Mono', monospace; }
+.step::before { content: '○'; font-size: 0.65rem; transition: all 0.3s; flex-shrink: 0; }
+.step.active { color: var(--accent); }
+.step.active::before { content: '◉'; color: var(--accent); }
+.step.done   { color: var(--green); }
+.step.done::before   { content: '✓'; color: var(--green); }
+
+/* ===== Results ===== */
+.results { position: relative; z-index: 1; padding: 0 24px 100px; }
+.results.hidden { display: none; }
+.results-inner {
+  max-width: 800px; margin: 0 auto;
+  display: flex; flex-direction: column; gap: 20px;
+  animation: fade-up 0.5s ease both;
+}
+@keyframes fade-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===== Score area ===== */
+.score-area {
+  display: grid; grid-template-columns: auto 1fr;
+  gap: 32px; align-items: center;
+  padding: 36px 40px;
+  background: var(--glass); border: 1px solid var(--border2);
+  border-radius: 24px; backdrop-filter: blur(20px);
+  box-shadow: 0 24px 48px rgba(0,0,0,0.35);
+  position: relative; overflow: hidden;
+}
+.score-area::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+}
+.score-glow { position: absolute; inset: 0; background: radial-gradient(ellipse at 20% 50%, rgba(124,111,255,0.06), transparent 60%); pointer-events: none; }
+.score-ring-wrap { position: relative; width: 130px; height: 130px; flex-shrink: 0; }
+.score-ring { width: 130px; height: 130px; transform: rotate(-90deg); }
+.ring-bg   { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 8; }
+.ring-fill {
+  fill: none; stroke: var(--green); stroke-width: 8; stroke-linecap: round;
+  stroke-dasharray: 345; stroke-dashoffset: 345;
+  transition: stroke-dashoffset 1.4s cubic-bezier(0.34,1.1,0.64,1), stroke 0.5s;
+  filter: drop-shadow(0 0 8px currentColor);
+}
+.score-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.score-num   { font-size: 2.6rem; font-weight: 900; line-height: 1; letter-spacing: -2px; transition: color 0.5s; }
+.score-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px; }
+.score-text  { display: flex; flex-direction: column; gap: 10px; }
+.verdict     { font-size: 1.75rem; font-weight: 900; letter-spacing: -0.8px; line-height: 1.1; }
+.verdict-sub { font-size: 0.9rem; color: var(--muted); line-height: 1.65; max-width: 440px; }
+.score-meta  { display: flex; gap: 20px; margin-top: 4px; }
+.meta-item   { display: flex; flex-direction: column; gap: 2px; }
+.meta-key    { font-size: 0.68rem; color: var(--subtle); text-transform: uppercase; letter-spacing: 0.07em; }
+.meta-val    { font-size: 0.82rem; font-weight: 600; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+
+/* ===== Signals grid ===== */
+.signals-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+.sig-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 18px;
+  display: flex; flex-direction: column; gap: 10px;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  animation: card-in 0.4s ease both;
+  cursor: default; position: relative; overflow: hidden;
+}
+.sig-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,0.03), transparent); pointer-events: none; }
+.sig-card:hover { transform: translateY(-2px); }
+.sig-card:nth-child(1)  { animation-delay: 0.02s; } .sig-card:nth-child(2)  { animation-delay: 0.06s; }
+.sig-card:nth-child(3)  { animation-delay: 0.10s; } .sig-card:nth-child(4)  { animation-delay: 0.14s; }
+.sig-card:nth-child(5)  { animation-delay: 0.18s; } .sig-card:nth-child(6)  { animation-delay: 0.22s; }
+.sig-card:nth-child(7)  { animation-delay: 0.26s; } .sig-card:nth-child(8)  { animation-delay: 0.30s; }
+.sig-card:nth-child(9)  { animation-delay: 0.34s; } .sig-card:nth-child(10) { animation-delay: 0.38s; }
+.sig-card:nth-child(11) { animation-delay: 0.42s; }
+@keyframes card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.sig-card.risk-high   { border-color: rgba(244,63,94,0.35);  background: rgba(244,63,94,0.06);  box-shadow: 0 0 20px rgba(244,63,94,0.06) inset; }
+.sig-card.risk-high:hover   { box-shadow: 0 8px 24px rgba(244,63,94,0.15),  0 0 20px rgba(244,63,94,0.06) inset; }
+.sig-card.risk-medium { border-color: rgba(251,146,60,0.35); background: rgba(251,146,60,0.06); box-shadow: 0 0 20px rgba(251,146,60,0.06) inset; }
+.sig-card.risk-medium:hover { box-shadow: 0 8px 24px rgba(251,146,60,0.15), 0 0 20px rgba(251,146,60,0.06) inset; }
+.sig-card.risk-low    { border-color: rgba(251,191,36,0.3);  background: rgba(251,191,36,0.05); }
+.sig-card.risk-safe   { border-color: rgba(16,216,118,0.2);  background: rgba(16,216,118,0.04); }
+
+.sig-card-top  { display: flex; align-items: center; justify-content: space-between; }
+.sig-card-icon { font-size: 1.25rem; line-height: 1; }
+.sig-badge     { font-size: 0.65rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.07em; }
+.badge-high    { background: rgba(244,63,94,0.2);  color: #fda4af; border: 1px solid rgba(244,63,94,0.3); }
+.badge-medium  { background: rgba(251,146,60,0.2); color: #fed7aa; border: 1px solid rgba(251,146,60,0.3); }
+.badge-low     { background: rgba(251,191,36,0.2); color: #fde68a; border: 1px solid rgba(251,191,36,0.3); }
+.badge-safe    { background: rgba(16,216,118,0.15); color: #6ee7b7; border: 1px solid rgba(16,216,118,0.25); }
+.sig-card-name { font-size: 0.82rem; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
+.sig-card-desc { font-size: 0.74rem; color: var(--muted); line-height: 1.55; }
+
+/* ===== Details card ===== */
+.details-card {
+  background: var(--glass); border: 1px solid var(--border2);
+  border-radius: 20px; padding: 28px;
+  backdrop-filter: blur(16px); position: relative; overflow: hidden;
+}
+.details-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+}
+.details-card h3 { font-size: 0.88rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 20px; }
+.detail-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-bottom: 1px solid rgba(255,255,255,0.05); gap: 16px; }
+.detail-row:last-child { border-bottom: none; }
+.detail-key { color: var(--muted); flex-shrink: 0; min-width: 160px; font-size: 0.83rem; }
+.detail-val { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; text-align: right; word-break: break-all; }
+.detail-val.good { color: var(--green); } .detail-val.warn { color: var(--orange); } .detail-val.bad { color: var(--red); }
+.disclaimer { font-size: 0.73rem; color: var(--subtle); text-align: center; line-height: 1.7; padding: 0 16px; }
+
+/* ===== How Section ===== */
+.how-section { position: relative; z-index: 1; padding: 100px 24px; border-top: 1px solid var(--border); }
+.section-eyebrow { text-align: center; font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); margin-bottom: 14px; }
+.section-title { text-align: center; font-size: clamp(1.6rem, 3.5vw, 2.2rem); font-weight: 900; letter-spacing: -0.8px; margin-bottom: 56px; }
+.how-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; max-width: 900px; margin: 0 auto; }
+.how-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 28px;
+  position: relative; overflow: hidden;
+  transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+.how-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent); }
+.how-card:hover { transform: translateY(-4px); border-color: rgba(124,111,255,0.3); box-shadow: 0 16px 40px rgba(0,0,0,0.3), 0 0 0 1px rgba(124,111,255,0.1); }
+.how-icon { font-size: 1.6rem; margin-bottom: 18px; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: rgba(124,111,255,0.1); border: 1px solid rgba(124,111,255,0.2); border-radius: 12px; }
+.how-card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 10px; }
+.how-card p  { font-size: 0.81rem; color: var(--muted); line-height: 1.7; }
+
+/* ===== Signals Section ===== */
+.signals-section { position: relative; z-index: 1; padding: 100px 24px; border-top: 1px solid var(--border); }
+.signals-list { max-width: 580px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.signal-item { display: flex; align-items: center; gap: 14px; font-size: 0.85rem; color: var(--muted); padding: 12px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; transition: border-color 0.2s, background 0.2s; }
+.signal-item:hover { background: var(--glass); border-color: var(--border2); }
+.sig-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sig-dot.red    { background: var(--red);    box-shadow: 0 0 8px rgba(244,63,94,0.7); }
+.sig-dot.orange { background: var(--orange); box-shadow: 0 0 8px rgba(251,146,60,0.7); }
+.sig-dot.yellow { background: var(--yellow); box-shadow: 0 0 8px rgba(251,191,36,0.7); }
+.sig-dot.green  { background: var(--green);  box-shadow: 0 0 8px rgba(16,216,118,0.7); }
+
+/* ===== History ===== */
+.history-section {
+  width: 100%; max-width: 640px;
+  margin-top: 20px;
+  animation: fade-up 0.4s ease both;
+}
+.history-section.hidden { display: none; }
+.history-label {
+  font-size: 0.72rem; font-weight: 600; color: var(--subtle);
+  text-transform: uppercase; letter-spacing: 0.09em;
+  margin-bottom: 8px; padding-left: 2px;
+}
+.history-list { display: flex; flex-direction: column; gap: 6px; }
+.history-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.history-item:hover { background: var(--glass); border-color: var(--border2); }
+.history-url {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.76rem; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.history-score {
+  font-size: 0.74rem; font-weight: 700;
+  white-space: nowrap; flex-shrink: 0;
+}
+
+/* ===== Re-scan button ===== */
+.rescan-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+  background: var(--surface); border: 1px solid var(--border2);
+  color: var(--muted); border-radius: 12px;
+  padding: 13px; font-size: 0.88rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+}
+.rescan-btn:hover {
+  background: var(--glass); color: var(--text);
+  border-color: rgba(124,111,255,0.35);
+  box-shadow: 0 0 20px rgba(124,111,255,0.08);
+}
+
+/* ===== Footer ===== */
+.footer { position: relative; z-index: 1; text-align: center; padding: 36px 24px; border-top: 1px solid var(--border); color: var(--subtle); font-size: 0.8rem; }
+.footer-sub { margin-top: 6px; font-size: 0.72rem; opacity: 0.55; }
+
+/* ===== Responsive ===== */
+@media (max-width: 680px) {
+  .signals-grid { grid-template-columns: repeat(2, 1fr); }
+  .score-area { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .score-meta { justify-content: center; }
+  .verdict-sub { max-width: 100%; }
+}
+@media (max-width: 540px) {
+  .header { padding: 12px 18px; }
+  .nav a  { padding: 5px 10px; font-size: 0.8rem; }
+  .hero   { padding: 72px 16px 48px; }
+  .how-grid { grid-template-columns: 1fr 1fr; }
+  .detail-key { min-width: 110px; }
+  .loading-box { padding: 36px 28px; min-width: 280px; }
+  .score-area  { padding: 28px 24px; }
+}
+  </style>
+</head>
+<body>
+
+  <!-- Ambient blobs -->
+  <div class="blob-wrap" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <span class="logo-fake">FAKE</span>
+      <span class="logo-slash">/</span>
+      <span class="logo-real">REAL</span>
+    </div>
+    <nav class="nav">
+      <a href="#how">仕組み</a>
+      <a href="#signals">検出項目</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="scan-line" aria-hidden="true"></div>
+
+    <div class="hero-badge">AI・偽サイト検出エンジン</div>
+
+    <h1 class="hero-title">
+      そのサイト、<br />
+      <span class="gradient-text">本物ですか？</span>
+    </h1>
+    <p class="hero-sub">
+      URLを入力するだけ。AIが生成した偽サイトや<br />フィッシングサイトの疑いを多角的に即時分析します。
+    </p>
+
+    <!-- Input -->
+    <div class="input-card">
+      <div class="input-row">
+        <span class="input-icon">🔗</span>
+        <input
+          id="urlInput"
+          type="url"
+          placeholder="https://example.com を入力..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button id="checkBtn" onclick="startCheck()">
+          <span id="btnText">スキャン</span>
+          <span id="btnIcon">↗</span>
+        </button>
+      </div>
+      <div class="input-hint">https:// から始まるURLを入力してください</div>
+    </div>
+
+    <!-- History -->
+    <div id="historySection" class="history-section hidden">
+      <div class="history-label">最近スキャンしたURL</div>
+      <div id="historyList" class="history-list"></div>
+    </div>
+
+    <!-- Samples -->
+    <div class="samples">
+      <span class="samples-label">試す：</span>
+      <button class="sample-btn" onclick="fillSample('https://www.google.com')">google.com</button>
+      <button class="sample-btn" onclick="fillSample('https://amazon-secure-login.net')">amazon-secure-login.net</button>
+      <button class="sample-btn" onclick="fillSample('http://192.168.1.1/login')">IPアドレス直接</button>
+      <button class="sample-btn" onclick="fillSample('https://login.verify.amazon.co.jp.evil.xyz/account')">多段サブドメイン</button>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section id="results" class="results hidden">
+    <div class="results-inner">
+
+      <!-- Score -->
+      <div class="score-area">
+        <div class="score-glow" aria-hidden="true"></div>
+
+        <div class="score-ring-wrap">
+          <svg class="score-ring" viewBox="0 0 130 130">
+            <circle class="ring-bg"   cx="65" cy="65" r="55" />
+            <circle id="ringFill" class="ring-fill" cx="65" cy="65" r="55" />
+          </svg>
+          <div class="score-center">
+            <div id="scoreNum" class="score-num">--</div>
+            <div class="score-label">危険度</div>
+          </div>
+        </div>
+
+        <div class="score-text">
+          <div id="verdict" class="verdict">分析中...</div>
+          <div id="verdictSub" class="verdict-sub"></div>
+          <div class="score-meta" id="scoreMeta"></div>
+        </div>
+      </div>
+
+      <!-- Signal cards -->
+      <div class="signals-grid" id="signalsGrid"></div>
+
+      <!-- Details -->
+      <div class="details-card" id="detailsCard">
+        <h3>詳細レポート</h3>
+        <div id="detailsBody"></div>
+      </div>
+
+      <button class="rescan-btn" onclick="window.scrollTo({top:0,behavior:'smooth'});document.getElementById('urlInput').focus();">
+        ↑ 別のURLをスキャンする
+      </button>
+
+      <p class="disclaimer">
+        ※ このツールはヒューリスティック分析に基づくものであり、確定的な判断ではありません。<br />
+        重要な判断は複数の手段で確認してください。
+      </p>
+    </div>
+  </section>
+
+  <!-- Loading -->
+  <div id="loadingOverlay" class="loading-overlay hidden" role="status" aria-live="polite">
+    <div class="loading-box">
+      <div class="spinner-ring"></div>
+      <div class="loading-title">スキャン中...</div>
+      <div class="loading-steps">
+        <div class="step" id="step1">ドメイン構造を検査</div>
+        <div class="step" id="step2">セキュリティ信号を分析</div>
+        <div class="step" id="step3">AIパターンを照合</div>
+        <div class="step" id="step4">総合スコアを算出</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <section id="how" class="how-section">
+    <p class="section-eyebrow">How it works</p>
+    <h2 class="section-title">どうやって判定するの？</h2>
+    <div class="how-grid">
+      <div class="how-card">
+        <div class="how-icon">🔍</div>
+        <h3>ドメイン分析</h3>
+        <p>ドメイン名のパターン、TLD、サブドメイン構造を解析し、詐欺サイトによく見られる特徴を検出します。</p>
+      </div>
+      <div class="how-card">
+        <div class="how-icon">🛡️</div>
+        <h3>セキュリティ検査</h3>
+        <p>SSL/TLS証明書、HTTPSの使用状況、既知のフィッシングパターンとの照合を行います。</p>
+      </div>
+      <div class="how-card">
+        <div class="how-icon">🤖</div>
+        <h3>AIパターン検出</h3>
+        <p>AIが生成したサイトに特有のURL構造・ドメイン命名パターンを機械学習的手法で識別します。</p>
+      </div>
+      <div class="how-card">
+        <div class="how-icon">📊</div>
+        <h3>総合スコアリング</h3>
+        <p>複数の信号を重み付けして統合し、0〜100の危険度スコアとして可視化します。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Signals -->
+  <section id="signals" class="signals-section">
+    <p class="section-eyebrow">Detection signals</p>
+    <h2 class="section-title">検出する信号一覧</h2>
+    <div class="signals-list">
+      <div class="signal-item"><span class="sig-dot red"></span>フィッシングキーワード（login, secure, verify 等）</div>
+      <div class="signal-item"><span class="sig-dot red"></span>ブランド名の模倣（amazon-, paypal-, google- 等）</div>
+      <div class="signal-item"><span class="sig-dot red"></span>IPアドレスによる直接アクセス</div>
+      <div class="signal-item"><span class="sig-dot orange"></span>異常に長いドメイン名</div>
+      <div class="signal-item"><span class="sig-dot orange"></span>ハイフンの過剰使用</div>
+      <div class="signal-item"><span class="sig-dot orange"></span>過度に深いサブドメイン構造</div>
+      <div class="signal-item"><span class="sig-dot orange"></span>疑わしいTLD（.xyz, .top, .click 等）</div>
+      <div class="signal-item"><span class="sig-dot yellow"></span>HTTPSの非使用</div>
+      <div class="signal-item"><span class="sig-dot yellow"></span>数字の混入パターン</div>
+      <div class="signal-item"><span class="sig-dot yellow"></span>AI生成サイト特有のURL構造</div>
+      <div class="signal-item"><span class="sig-dot green"></span>信頼できるTLD（.go.jp, .ac.jp, .gov 等）→ 減点</div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>FAKEorREAL &copy; 2026 — AI・偽サイト検出ツール</p>
+    <p class="footer-sub">このツールは教育・啓発目的で提供されています</p>
+  </footer>
+
+  <script>
+'use strict';
+
+// ===== 検出ルール定義 =====
+const RULES = [
+  {
+    id: 'phishing_keywords', name: 'フィッシングキーワード', icon: '🎣',
+    check: (u) => {
+      const kws = ['login','signin','secure','verify','account','update','banking','paypal','amazon','apple','microsoft','google','facebook','instagram','netflix'];
+      const host = u.hostname.toLowerCase();
+      const found = kws.filter(k => host.includes(k));
+      if (found.length >= 2) return { risk: 'high',   score: 40, desc: `危険なキーワードを${found.length}件検出: ${found.join(', ')}` };
+      if (found.length === 1) return { risk: 'medium', score: 18, desc: `フィッシングキーワード検出: ${found[0]}` };
+      return { risk: 'safe', score: 0, desc: 'フィッシングキーワードなし' };
+    }
+  },
+  {
+    id: 'brand_impersonation', name: 'ブランド模倣', icon: '🏷️',
+    check: (u) => {
+      const brands = ['amazon','paypal','google','apple','microsoft','facebook','twitter','instagram','netflix','rakuten','yahoo','softbank','docomo','au','mufg','smbc','mizuho'];
+      const host = u.hostname.toLowerCase().replace(/^www\./, '');
+      const trustedDomains = ['amazon.co.jp','amazon.com','google.com','apple.com','microsoft.com','paypal.com','facebook.com','twitter.com','instagram.com','netflix.com','rakuten.co.jp','yahoo.co.jp'];
+      if (trustedDomains.some(d => host === d || host.endsWith('.' + d))) return { risk: 'safe', score: 0, desc: '正規ブランドドメイン' };
+      const impersonated = brands.filter(b => host.includes(b));
+      if (impersonated.length > 0) return { risk: 'high', score: 35, desc: `ブランド「${impersonated[0]}」を模倣している可能性` };
+      return { risk: 'safe', score: 0, desc: '模倣パターンなし' };
+    }
+  },
+  {
+    id: 'ip_address', name: 'IPアドレス直接指定', icon: '🔢',
+    check: (u) => {
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(u.hostname)) return { risk: 'high', score: 30, desc: 'ドメイン名ではなくIPアドレスが使用されています' };
+      return { risk: 'safe', score: 0, desc: 'ドメイン名を使用' };
+    }
+  },
+  {
+    id: 'domain_length', name: 'ドメイン長', icon: '📏',
+    check: (u) => {
+      const len = u.hostname.replace(/^www\./, '').length;
+      if (len > 40) return { risk: 'high',   score: 20, desc: `ドメイン名が非常に長い (${len}文字)` };
+      if (len > 25) return { risk: 'medium', score: 10, desc: `ドメイン名が長め (${len}文字)` };
+      return { risk: 'safe', score: 0, desc: `ドメイン長は正常 (${len}文字)` };
+    }
+  },
+  {
+    id: 'hyphen_abuse', name: 'ハイフン多用', icon: '➖',
+    check: (u) => {
+      const count = (u.hostname.toLowerCase().match(/-/g) || []).length;
+      if (count >= 4) return { risk: 'high',   score: 20, desc: `ハイフンが${count}個（偽サイトの特徴）` };
+      if (count >= 2) return { risk: 'medium', score: 10, desc: `ハイフンが${count}個` };
+      return { risk: 'safe', score: 0, desc: 'ハイフンの使用は正常' };
+    }
+  },
+  {
+    id: 'suspicious_tld', name: '疑わしいTLD', icon: '🏴',
+    check: (u) => {
+      const highRisk = ['.xyz','.top','.click','.loan','.download','.racing','.review','.win','.bid','.trade','.date','.webcam','.faith','.stream','.gq','.cf','.ga','.ml','.tk'];
+      const medRisk  = ['.info','.biz','.online','.site','.website','.space','.fun','.icu'];
+      const safe     = ['.go.jp','.ac.jp','.co.jp','.lg.jp','.gov','.edu','.ac.uk','.org'];
+      const h = u.hostname.toLowerCase();
+      if (safe.some(t => h.endsWith(t)))    return { risk: 'safe',   score: -5, desc: '信頼性の高いTLD' };
+      if (highRisk.some(t => h.endsWith(t))) return { risk: 'high',   score: 25, desc: `高リスクTLD: ${highRisk.find(t => h.endsWith(t))}` };
+      if (medRisk.some(t => h.endsWith(t)))  return { risk: 'medium', score: 12, desc: `注意が必要なTLD: ${medRisk.find(t => h.endsWith(t))}` };
+      return { risk: 'safe', score: 0, desc: '一般的なTLD' };
+    }
+  },
+  {
+    id: 'http_only', name: 'HTTPS非使用', icon: '🔓',
+    check: (u) => {
+      if (u.protocol === 'http:') return { risk: 'medium', score: 15, desc: '暗号化されていないHTTP接続（個人情報は絶対に入力しないでください）' };
+      return { risk: 'safe', score: 0, desc: 'HTTPS（暗号化）使用' };
+    }
+  },
+  {
+    id: 'excessive_subdomains', name: 'サブドメイン過多', icon: '🔗',
+    check: (u) => {
+      const parts = u.hostname.split('.');
+      if (parts.length >= 5) return { risk: 'high',   score: 20, desc: `サブドメイン過多 (${parts.length - 2}階層) — 本物のブランドを偽装する手法` };
+      if (parts.length === 4) return { risk: 'medium', score: 8,  desc: `サブドメインが深い (${parts.length - 2}階層)` };
+      return { risk: 'safe', score: 0, desc: 'サブドメイン構造は正常' };
+    }
+  },
+  {
+    id: 'numeric_in_domain', name: 'ドメイン内の数字', icon: '🔢',
+    check: (u) => {
+      const digitCount = (u.hostname.split('.').slice(-2)[0].match(/\d/g) || []).length;
+      if (digitCount >= 4) return { risk: 'medium', score: 12, desc: `ドメインに数字が多い (${digitCount}文字) — AI生成サイトの特徴` };
+      if (digitCount >= 2) return { risk: 'low',    score: 5,  desc: `ドメインに数字 (${digitCount}文字)` };
+      return { risk: 'safe', score: 0, desc: '数字の使用は正常範囲' };
+    }
+  },
+  {
+    id: 'ai_patterns', name: 'AI生成サイトパターン', icon: '🤖',
+    check: (u) => {
+      const host = u.hostname.toLowerCase();
+      const hostPats = [/[a-z]{4,8}-[a-z]{4,8}-[a-z]{4,8}\./, /^[a-z]{12,20}\.(xyz|top|online|site)$/, /(ai|gpt|bot|auto|gen)\d*\./i];
+      const urlPats  = [/[?&][a-z]{1,3}=[a-zA-Z0-9]{20,}/];
+      const m = hostPats.filter(p => p.test(host)).length + urlPats.filter(p => p.test(u.href)).length;
+      if (m >= 2) return { risk: 'high',   score: 25, desc: 'AI生成サイトに特有のパターンを複数検出' };
+      if (m === 1) return { risk: 'medium', score: 10, desc: 'AI生成サイトの可能性を示すパターンを検出' };
+      return { risk: 'safe', score: 0, desc: 'AI生成パターンなし' };
+    }
+  },
+  {
+    id: 'path_anomaly', name: 'URLパス異常', icon: '📂',
+    check: (u) => {
+      if (/\/[a-f0-9]{16,}/i.test(u.pathname) && u.search.length > 100) return { risk: 'medium', score: 12, desc: 'ランダムなパスと長いクエリパラメータを検出' };
+      if (u.pathname.split('/').length > 6) return { risk: 'low', score: 5, desc: 'URLパスが深い' };
+      return { risk: 'safe', score: 0, desc: 'URLパスは正常' };
+    }
+  },
+];
+
+// ===== ユーティリティ =====
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+// ===== サンプル入力 =====
+function fillSample(url) {
+  document.getElementById('urlInput').value = url;
+  document.getElementById('urlInput').focus();
+}
+
+// ===== トースト通知 =====
+function showToast(msg, type = 'error') {
+  const existing = document.getElementById('toast');
+  if (existing) existing.remove();
+  const t = document.createElement('div');
+  t.id = 'toast';
+  t.textContent = msg;
+  t.style.cssText = `
+    position:fixed; bottom:32px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:${type === 'error' ? 'rgba(244,63,94,0.15)' : 'rgba(16,216,118,0.15)'};
+    border:1px solid ${type === 'error' ? 'rgba(244,63,94,0.4)' : 'rgba(16,216,118,0.4)'};
+    color:${type === 'error' ? '#fda4af' : '#6ee7b7'};
+    padding:12px 24px; border-radius:12px; font-size:0.88rem; font-weight:500;
+    backdrop-filter:blur(16px); z-index:500;
+    transition:opacity 0.3s, transform 0.3s;
+    opacity:0;
+  `;
+  document.body.appendChild(t);
+  requestAnimationFrame(() => {
+    t.style.opacity = '1';
+    t.style.transform = 'translateX(-50%) translateY(0)';
+  });
+  setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transform = 'translateX(-50%) translateY(10px)';
+    setTimeout(() => t.remove(), 300);
+  }, 3200);
+}
+
+// ===== スキャン履歴 =====
+const HISTORY_KEY = 'fakeoreal_history';
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveHistory(entry) {
+  const h = loadHistory();
+  h.unshift(entry);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, 5)));
+  renderHistory();
+}
+
+function renderHistory() {
+  const h = loadHistory();
+  const el = document.getElementById('historyList');
+  if (!el) return;
+  if (h.length === 0) { el.innerHTML = ''; document.getElementById('historySection').classList.add('hidden'); return; }
+  document.getElementById('historySection').classList.remove('hidden');
+  el.innerHTML = h.map(e => {
+    const color = e.score >= 60 ? '#f43f5e' : e.score >= 35 ? '#fb923c' : e.score >= 15 ? '#fbbf24' : '#10d876';
+    const label = e.score >= 60 ? '高リスク' : e.score >= 35 ? '注意' : e.score >= 15 ? '比較的安全' : '安全';
+    return `
+      <div class="history-item" onclick="fillSample('${e.url}')">
+        <span class="history-url">${e.url.length > 45 ? e.url.slice(0,45)+'…' : e.url}</span>
+        <span class="history-score" style="color:${color}">${label} ${e.score}</span>
+      </div>`;
+  }).join('');
+}
+
+// ===== メイン処理 =====
+async function startCheck() {
+  const raw = document.getElementById('urlInput').value.trim();
+  if (!raw) { showToast('URLを入力してください'); return; }
+
+  let urlStr = raw;
+  if (!/^https?:\/\//i.test(urlStr)) urlStr = 'https://' + urlStr;
+
+  let parsed;
+  try { parsed = new URL(urlStr); }
+  catch { showToast('有効なURLを入力してください（例: https://example.com）'); return; }
+
+  document.getElementById('checkBtn').disabled = true;
+  document.getElementById('results').classList.add('hidden');
+  showLoading(true);
+
+  const steps = ['step1','step2','step3','step4'];
+  for (let i = 0; i < steps.length; i++) {
+    await sleep(600);
+    if (i > 0) document.getElementById(steps[i-1]).classList.replace('active','done');
+    document.getElementById(steps[i]).classList.add('active');
+  }
+  await sleep(700);
+  document.getElementById(steps[steps.length-1]).classList.replace('active','done');
+  await sleep(400);
+
+  const results = RULES.map(rule => {
+    try { return { ...rule, ...rule.check(parsed) }; }
+    catch { return { ...rule, risk: 'safe', score: 0, desc: '検査をスキップ' }; }
+  });
+
+  const raw_score = results.reduce((s, r) => s + (r.score || 0), 0);
+  const score = clamp(Math.round(raw_score), 0, 100);
+
+  showLoading(false);
+  document.getElementById('checkBtn').disabled = false;
+  renderResults(parsed, score, results);
+  saveHistory({ url: parsed.href, score, ts: Date.now() });
+}
+
+// ===== ローディング =====
+function showLoading(show) {
+  const el = document.getElementById('loadingOverlay');
+  if (show) {
+    el.classList.remove('hidden');
+    ['step1','step2','step3','step4'].forEach(id => {
+      const s = document.getElementById(id);
+      s.classList.remove('active','done');
+    });
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+// ===== 結果表示 =====
+function renderResults(url, score, results) {
+  let verdictText, verdictSub, ringColor, glowColor;
+  if (score >= 60) {
+    verdictText = '⚠️ 高リスク';
+    verdictSub  = 'このサイトは詐欺・フィッシング・AI生成サイトの可能性が高いです。個人情報や支払い情報の入力は避けてください。';
+    ringColor = '#f43f5e'; glowColor = 'rgba(244,63,94,0.12)';
+  } else if (score >= 35) {
+    verdictText = '🟡 注意が必要';
+    verdictSub  = '複数の疑わしい特徴が検出されました。アクセスの前に公式サイトで確認するか、URLを慎重に確認してください。';
+    ringColor = '#fb923c'; glowColor = 'rgba(251,146,60,0.10)';
+  } else if (score >= 15) {
+    verdictText = '🟡 比較的安全';
+    verdictSub  = '大きな問題は検出されませんでしたが、いくつかの注意点があります。引き続き注意してください。';
+    ringColor = '#fbbf24'; glowColor = 'rgba(251,191,36,0.08)';
+  } else {
+    verdictText = '✅ 安全の可能性が高い';
+    verdictSub  = '危険なパターンは検出されませんでした。ただし、このツールだけで完全な安全性を保証することはできません。';
+    ringColor = '#10d876'; glowColor = 'rgba(16,216,118,0.08)';
+  }
+
+  document.getElementById('verdict').textContent = verdictText;
+  document.getElementById('verdict').style.color  = ringColor;
+  document.getElementById('verdictSub').textContent = verdictSub;
+  document.getElementById('scoreNum').textContent = score;
+  document.getElementById('scoreNum').style.color  = ringColor;
+
+  // スコア連動グロウ
+  const scoreArea = document.querySelector('.score-area');
+  scoreArea.style.setProperty('--glow-color', glowColor);
+  const glow = scoreArea.querySelector('.score-glow');
+  if (glow) glow.style.background = `radial-gradient(ellipse at 20% 50%, ${glowColor.replace('0.12','0.18').replace('0.10','0.15').replace('0.08','0.12')}, transparent 60%)`;
+
+  // メタ
+  const highCount = results.filter(r => r.risk === 'high').length;
+  const safeCount = results.filter(r => r.risk === 'safe').length;
+  document.getElementById('scoreMeta').innerHTML = `
+    <div class="meta-item">
+      <span class="meta-key">高リスク信号</span>
+      <span class="meta-val" style="color:${highCount > 0 ? ringColor : '#10d876'}">${highCount} 件</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-key">安全信号</span>
+      <span class="meta-val" style="color:#10d876">${safeCount} 件</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-key">検査項目数</span>
+      <span class="meta-val">${results.length} 項目</span>
+    </div>
+  `;
+
+  // リング
+  const ring = document.getElementById('ringFill');
+  ring.style.stroke = ringColor;
+  const circumference = 345;
+  setTimeout(() => { ring.style.strokeDashoffset = circumference - (score / 100) * circumference; }, 100);
+
+  // シグナルカード
+  const grid = document.getElementById('signalsGrid');
+  grid.innerHTML = '';
+  results.forEach(r => {
+    const riskClass  = { high:'risk-high', medium:'risk-medium', low:'risk-low', safe:'risk-safe' }[r.risk] || 'risk-safe';
+    const badgeClass = { high:'badge-high', medium:'badge-medium', low:'badge-low', safe:'badge-safe' }[r.risk] || 'badge-safe';
+    const riskLabel  = { high:'高リスク', medium:'中リスク', low:'低リスク', safe:'安全' }[r.risk] || '不明';
+    const card = document.createElement('div');
+    card.className = `sig-card ${riskClass}`;
+    card.innerHTML = `
+      <div class="sig-card-top">
+        <span class="sig-card-icon">${r.icon}</span>
+        <span class="sig-badge ${badgeClass}">${riskLabel}</span>
+      </div>
+      <div class="sig-card-name">${r.name}</div>
+      <div class="sig-card-desc">${r.desc}</div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // 詳細
+  const details = [
+    { key: 'URL',          val: url.href.length > 60 ? url.href.slice(0,60)+'...' : url.href, cls: '' },
+    { key: 'プロトコル',   val: url.protocol, cls: url.protocol === 'https:' ? 'good' : 'bad' },
+    { key: 'ホスト名',     val: url.hostname, cls: '' },
+    { key: 'ドメイン長',   val: `${url.hostname.length} 文字`, cls: url.hostname.length > 30 ? 'warn' : 'good' },
+    { key: 'ハイフン数',   val: `${(url.hostname.match(/-/g)||[]).length} 個`, cls: (url.hostname.match(/-/g)||[]).length >= 2 ? 'warn' : 'good' },
+    { key: 'サブドメイン階層', val: `${Math.max(0, url.hostname.split('.').length - 2)} 階層`, cls: url.hostname.split('.').length >= 4 ? 'warn' : 'good' },
+    { key: 'パス',         val: url.pathname || '/', cls: '' },
+    { key: 'クエリ長',     val: `${url.search.length} 文字`, cls: url.search.length > 80 ? 'warn' : 'good' },
+    { key: '危険度スコア', val: `${score} / 100`, cls: score >= 60 ? 'bad' : score >= 30 ? 'warn' : 'good' },
+  ];
+  document.getElementById('detailsBody').innerHTML = details.map(d => `
+    <div class="detail-row">
+      <span class="detail-key">${d.key}</span>
+      <span class="detail-val ${d.cls}">${d.val}</span>
+    </div>
+  `).join('');
+
+  const section = document.getElementById('results');
+  section.classList.remove('hidden');
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ===== Enterキー =====
+document.getElementById('urlInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') startCheck();
+});
+
+// ===== 初期化 =====
+renderHistory();
+  </script>
+</body>
+</html>
